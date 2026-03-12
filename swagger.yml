@@ -1,0 +1,25 @@
+openapi: 3.0.0
+info:
+  title: API de Agendamiento Rimac
+  version: 1.0.0
+  description: API para el agendamiento de citas médicas en Perú y Chile.
+paths:
+  /appointments:
+    post:
+      summary: Registra una nueva petición de cita.
+      responses:
+        201:
+          [cite_start]description: Agendamiento en proceso. [cite: 5]
+  /appointments/{insuredId}:
+    get:
+      [cite_start]summary: Lista las peticiones por código de asegurado. [cite: 29]
+      parameters:
+        - name: insuredId
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^\d{5}$'
+      responses:
+        200:
+          description: Listado de citas obtenido con éxito.

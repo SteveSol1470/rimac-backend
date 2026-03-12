@@ -1,0 +1,139 @@
+service: rimac-backend
+frameworkVersion: '4' 
+
+provider:
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:PutItem
+            - dynamodb:Query
+          Resource: !GetAtt AppointmentsTable.Arn
+        - Effect: Allow
+          Action:
+            - sns:Publish
+          Resource: !Ref AppointmentTopic
+  name: aws
+  runtime: nodejs18.x
+  region: us-east-1
+  environment:
+    DYNAMODB_TABLE: AppointmentsTable
+    SNS_TOPIC_ARN: !Ref AppointmentTopic
+
+functions:
+  createAppointment:
+    handler: src/functions/appointment/handler.create
+    events:
+      - httpApi:
+          path: /appointments
+          method: post
+
+  getAppointments:
+    handler: src/functions/appointment/handler.list
+    events:
+      - httpApi:
+          path: /appointments/{insuredId}
+          method: get
+
+  appointmentPE:
+    handler: src/functions/country-processor/handler.processAppointment
+    events:
+      - sqs:
+          arn: !GetAtt SQSPE.Arn
+
+  appointmentCL:
+    handler: src/functions/country-processor/handler.processAppointment
+    events:
+      - sqs:
+          arn: !GetAtt SQSCL.Arn
+
+  updateStatus:
+    handler: src/functions/appointment/handler.updateStatus
+    events:
+      - sqs:
+          arn: !GetAtt SQSFinal.Arn
+resources:
+  Resources:
+    AppointmentsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: AppointmentsTable
+        AttributeDefinitions:
+          - AttributeName: insuredId
+            AttributeType: S
+          - AttributeName: scheduleId
+            AttributeType: N
+        KeySchema:
+          - AttributeName: insuredId
+            KeyType: HASH
+          - AttributeName: scheduleId
+            KeyType: RANGE
+        BillingMode: PAY_PER_REQUEST
+
+    SNSToSQSPEPolicy:
+      Type: AWS::SNS::Subscription
+      Properties:
+        Endpoint: !GetAtt SQSPE.Arn
+        Protocol: sqs
+        TopicArn: !Ref AppointmentTopic
+        FilterPolicy:
+          country: ["PE"] 
+
+    SNSToSQSCLPolicy:
+      Type: AWS::SNS::Subscription
+      Properties:
+        Endpoint: !GetAtt SQSCL.Arn
+        Protocol: sqs
+        TopicArn: !Ref AppointmentTopic
+        FilterPolicy:
+          country: ["CL"]
+
+    AppointmentTopic:
+      Type: AWS::SNS::Topic
+      Properties:
+        TopicName: appointment-topic
+
+    SQSPE:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: SQS_PE
+
+    SQSCL:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: SQS_CL
+  
+    SQSFinal:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: SQS_Final
+
+    AppointmentProcessedRule:
+      Type: AWS::Events::Rule
+      Properties:
+        Name: AppointmentProcessedRule
+        EventPattern:
+          source:
+            - "rimac.appointment.pe"
+            - "rimac.appointment.cl"
+          detail-type:
+            - "AppointmentProcessed"
+        State: ENABLED
+        Targets:
+          - Arn: !GetAtt SQSFinal.Arn
+            Id: "SQSFinalTarget"
+
+    SQSFinalPolicy:
+      Type: AWS::SQS::QueuePolicy
+      Properties:
+        Queues:
+          - !Ref SQSFinal
+        PolicyDocument:
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service: events.amazonaws.com
+              Action: sqs:SendMessage
+              Resource: !GetAtt SQSFinal.Arn
+  
