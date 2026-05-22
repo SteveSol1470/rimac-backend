@@ -25,10 +25,10 @@ provider:
   environment:
     DYNAMODB_TABLE: AppointmentsTable
     SNS_TOPIC_ARN: !Ref AppointmentTopic
-    RDS_HOST: "database-1.cy368208060d.us-east-1.rds.amazonaws.com"
-    RDS_USER: "admin"
-    RDS_PASSWORD: "AWSdatabase1"
-    RDS_DATABASE: "main"
+    RDS_HOST: ${ssm:RDS_HOST}
+    RDS_USER: ${ssm:RDS_USER}
+    RDS_PASSWORD: ${ssm:RDS_PASSWORD}
+    RDS_DATABASE: ${ssm:RDS_DATABASE}
 
 functions:
   createAppointment:
