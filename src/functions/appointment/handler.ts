@@ -64,3 +64,28 @@ export const list = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxy
     return { statusCode: 500, body: JSON.stringify({ error: "Error al listar" }) };
   }
 };
+
+export const updateStatus = async (event: any) => {
+  for (const record of event.Records) {
+    const detail = JSON.parse(record.body).detail; // EventBridge envuelve el mensaje en 'detail'
+    const { insuredId, scheduleId, status } = detail;
+
+    const params = {
+      TableName: process.env.DYNAMODB_TABLE as string,
+      Key: {
+        insuredId: insuredId,
+        scheduleId: scheduleId
+      },
+      UpdateExpression: "set #status = :s",
+      ExpressionAttributeNames: {
+        "#status": "status"
+      },
+      ExpressionAttributeValues: {
+        ":s": status
+      }
+    };
+
+    await dynamo.update(params).promise();
+    console.log(`Cita ${scheduleId} actualizada a ${status} para ${insuredId}`);
+  }
+};

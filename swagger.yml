@@ -2,17 +2,53 @@ openapi: 3.0.0
 info:
   title: API de Agendamiento Rimac
   version: 1.0.0
-  description: API para el agendamiento de citas médicas en Perú y Chile.
+  description: API para el agendamiento de citas médicas con arquitectura orientada a eventos.
+servers:
+  - url: https://j1u5910tw8.execute-api.us-east-1.amazonaws.com/appointments
+    description: Servidor de Desarrollo
+
 paths:
   /appointments:
     post:
       summary: Registra una nueva petición de cita.
+      description: Envía los datos de la cita a DynamoDB e inicia el flujo de procesamiento vía SNS/SQS.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - insuredId
+                - scheduleId
+                - countryISO
+              properties:
+                insuredId:
+                  type: string
+                  example: "00123"
+                  pattern: '^\d{5}$'
+                scheduleId:
+                  type: integer
+                  example: 101
+                countryISO:
+                  type: string
+                  example: "PE"
+                  enum: [PE, CL]
       responses:
-        201:
-          [cite_start]description: Agendamiento en proceso. [cite: 5]
+        '201':
+          description: Agendamiento en proceso.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Agendamiento en proceso"
+
   /appointments/{insuredId}:
     get:
-      [cite_start]summary: Lista las peticiones por código de asegurado. [cite: 29]
+      summary: Lista las peticiones por código de asegurado.
       parameters:
         - name: insuredId
           in: path
@@ -20,6 +56,21 @@ paths:
           schema:
             type: string
             pattern: '^\d{5}$'
+          example: "00123"
       responses:
-        200:
+        '200':
           description: Listado de citas obtenido con éxito.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    insuredId:
+                      type: string
+                    scheduleId:
+                      type: integer
+                    status:
+                      type: string
+                      example: "completed"
